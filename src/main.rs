@@ -1,10 +1,15 @@
 mod angle_list;
+mod cost_matrix;
+mod line;
 
 use angle_list::AngleOkList;
+use cost_matrix::CostMatrix;
 use imageproc::drawing::draw_text_mut;
+use line::Line;
 use rusttype::Font;
 use rusttype::Scale;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::collections::LinkedList;
 use std::{collections::BinaryHeap, f64::consts::PI, fmt, fs, mem, rc::Rc, time::Instant};
 
@@ -12,6 +17,8 @@ use clap::Parser;
 use image::{Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_circle_mut, draw_line_segment_mut};
 use rand::{prelude::*, rngs::ThreadRng, seq::SliceRandom, Rng};
+
+use crate::line::find_lines;
 
 #[derive(Debug)]
 struct Dir(f64, f64);
@@ -89,112 +96,6 @@ fn path_is_ok(path: &Vec<&Point>) -> bool {
     true
 }
 
-#[derive(Clone, Debug)]
-struct CostMatrix {
-    data: Vec<Option<f64>>,
-    size: usize,
-}
-impl fmt::Display for CostMatrix {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut i = 0;
-        writeln!(f, "")?;
-        for y in 0..self.size {
-            for x in 0..self.size {
-                write!(f, "{:.0}\t", self.data[i].unwrap_or(f64::NAN))?;
-                i += 1;
-            }
-            writeln!(f, "")?;
-        }
-        Ok(())
-    }
-}
-impl CostMatrix {
-    fn new(points: &Vec<Point>) -> Self {
-        let size = points.len();
-        let mut data = vec![None; size * size];
-        let mut i = 0;
-        for y in 0..size {
-            for x in 0..size {
-                if x != y {
-                    let dist = points[x].dist_to(&points[y]);
-                    data[i] = Some(dist);
-                }
-                i += 1;
-            }
-        }
-        Self { data, size }
-    }
-    fn get_idx(&self, x: usize, y: usize) -> usize {
-        self.size * y + x
-    }
-    fn get(&self, x: usize, y: usize) -> &Option<f64> {
-        &self.data[self.get_idx(x, y)]
-    }
-    fn set(&mut self, x: usize, y: usize, value: Option<f64>) {
-        let i = self.get_idx(x, y);
-        self.data[i] = value;
-    }
-    fn clear_line(&mut self, n: usize, is_vertical: bool) {
-        let size = self.size;
-        let start = if is_vertical { n * size } else { n };
-        let step = if is_vertical { 1 } else { size };
-        for x in 0..size {
-            self.data[start + x * step] = None;
-        }
-    }
-    ///
-    ///```
-    ///assert!(false);
-    ///```
-    fn reduce_line(&mut self, n: usize, is_vertical: bool) -> f64 {
-        let size = self.size;
-        let start = if is_vertical { n * size } else { n };
-        let step = if is_vertical { 1 } else { size };
-        let min = (0..size)
-            .filter_map(|x| self.data[start + x * step])
-            .fold(f64::NAN, f64::min);
-        if min.is_nan() {
-            return 0.0;
-        }
-        for x in 0..size {
-            if let Some(v) = &mut self.data[start + x * step] {
-                *v -= min;
-            }
-        }
-        min
-    }
-    fn reduce_lines(&mut self, is_vertical: bool) -> f64 {
-        let mut sum = 0.0;
-        for i in 0..self.size {
-            sum += self.reduce_line(i, is_vertical);
-        }
-        sum
-    }
-    fn reduce(&mut self) -> f64 {
-        // println!("reducing matrix, before: {}", self);
-        let cost = self.reduce_lines(false) + self.reduce_lines(true);
-        // println!("after: {self}, cost: {cost}");
-        cost
-    }
-    fn add_path(&self, start: usize, end: usize) -> Option<(f64, CostMatrix)> {
-        // println!("adding path, start: {start}, end: {end}");
-        let mut matrix = self.clone();
-        //cost: cost from start to end + prev_cost + new reduction cost
-        let i = self.get_idx(end, start);
-        // let i = self.get_idx(start, end);
-        // let move_cost = mem::take(&mut matrix.data[i]).expect("path wasn't available");
-        let move_cost = mem::take(&mut matrix.data[i])?;
-        //rows for start
-        matrix.clear_line(start, true);
-        //columns for end
-        matrix.clear_line(end, false);
-        //remove the other way round
-        matrix.set(start, end, None);
-        // let reduce_cost = matrix.reduce();
-        // let cost = move_cost + reduce_cost;
-        Some((move_cost, matrix))
-    }
-}
 #[derive(Clone)]
 struct PathPt {
     prev: Option<Rc<PathPt>>,
@@ -289,99 +190,53 @@ fn check_angles(pts: &Vec<Point>) {
     }
     println!("all angles ok!")
 }
-fn find_lines(costs: &CostMatrix, angle_list: &AngleOkList) -> Vec<Vec<usize>> {
-    //find lines in the points by finding points that only have two points that are really close
-    let n_pts = costs.size;
-    let mut line_segments = HashMap::new();
-    //finding line segments
-    for start in 0..n_pts {
-        let mut nexts = (0..n_pts)
-            .filter_map(|b| Some((b, costs.get(start, b).clone()?)))
-            .collect::<Vec<_>>();
-        nexts.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let (pt_0, dist_0) = nexts[0];
-        let (pt_1, dist_1) = nexts[1];
-        let (_, dist_2) = nexts[2];
-        let security = 1.5;
-        if dist_1 < dist_0 * security
-            && dist_2 > dist_1 * 1.5
-            && angle_list.is_ok(pt_0, start, pt_1)
-        {
-            line_segments.insert(start, (pt_0, pt_1));
-        }
+#[derive(Clone)]
+struct Skip {
+    end: usize,
+    len: usize,
+}
+impl Skip {
+    fn new(end: usize, len: usize) -> Self {
+        Self { end, len }
     }
-
-    if false {
-        //convert line segments to lines
-        let lines = line_segments
-            .iter()
-            .map(|(start, (pt_0, pt_1))| vec![*pt_0, *start, *pt_1])
-            .collect();
-        return lines;
-    }
-    let mut lines = vec![];
-    let mut used_pts = vec![false; n_pts];
-    while !line_segments.is_empty() {
-        let mut line = LinkedList::new();
-        //get random key
-        let pt = *line_segments.keys().next().unwrap();
-        let (mut start, mut end) = line_segments.remove(&pt).unwrap();
-        line.push_back(start);
-        line.push_back(pt);
-        line.push_back(end);
-        if used_pts[pt] || used_pts[start] || used_pts[end] {
-            continue;
-        }
-
-        used_pts[pt] = true;
-        used_pts[start] = true;
-        used_pts[end] = true;
-        let mut p_pt = pt;
-        while let Some((a, b)) = line_segments.remove(&end) {
-            let new_end = if a == p_pt { b } else { a };
-            if used_pts[new_end] {
-                break;
-            }
-            line.push_back(new_end);
-            used_pts[new_end] = true;
-            p_pt = end;
-            end = new_end;
-        }
-        p_pt = pt;
-        while let Some((a, b)) = line_segments.remove(&start) {
-            let new_start = if a == p_pt { b } else { a };
-            if used_pts[new_start] {
-                break;
-            }
-            line.push_front(new_start);
-            used_pts[new_start] = true;
-            p_pt = start;
-            start = new_start;
-        }
-        //transform line into a vector
-        let line = line.into_iter().collect::<Vec<_>>();
-        if line.len() < 35 {
-            let pt_idx = line.iter().position(|&x| x == pt).unwrap();
-            println!(
-                "line too short, start: {}, idx: {}/{}",
-                pt,
-                pt_idx,
-                line.len()
-            );
-        }
-        if line.len() > 5 {
-            lines.push(line);
-        }
-    }
-    lines
+}
+enum NextPaths {
+    Multiple(usize, Vec<usize>),
+    Skip(Skip),
 }
 //function that makes a line of n points
-fn find_shortest_paths(costs: &CostMatrix) -> Vec<(usize, Vec<usize>)> {
+fn find_shortest_paths(costs: &CostMatrix, lines: &Vec<Line>) -> Vec<(Vec<usize>, Option<usize>)> {
+    let line_pts: HashSet<usize> = lines
+        .iter()
+        .flat_map(|l| -> Vec<usize> { (&l.pts[1..l.pts.len() - 1]).to_vec() })
+        .collect();
+    let line_skips: HashMap<usize, Skip> = lines
+        .iter()
+        .flat_map(|l| {
+            [(0, 1), (1, 0)]
+                .into_iter()
+                .map(|(a, b)| (l.ends[a], Skip::new(l.ends[b], l.pts.len())))
+        })
+        .collect();
     let n_pts = costs.size;
     (0..n_pts)
-        .map(|start| -> (usize, Vec<usize>) {
+        .map(|start| -> (Vec<usize>, Option<usize>) {
+            let skip = if let Some(skip) = line_skips.get(&start) {
+                Some(skip.end)
+                //return Some(NextPaths::Skip(skip.clone()));
+            } else {
+                None
+            };
+            /*if line_pts.contains(&start) {
+                return None;
+            }*/
             let mut nexts = (0..n_pts)
-                .filter_map(|b| Some((b, costs.get(start, b).clone()?)))
+                .filter_map(|b| {
+                    if line_pts.contains(&b) {
+                        return None;
+                    }
+                    Some((b, costs.get(start, b).clone()?))
+                })
                 .collect::<Vec<_>>();
             nexts.sort_by(|a, b| a.1.total_cmp(&b.1));
             let max_len = nexts[1].1 * 2.0;
@@ -394,20 +249,57 @@ fn find_shortest_paths(costs: &CostMatrix) -> Vec<(usize, Vec<usize>)> {
                 }
             }
             let nexts = nexts.into_iter().map(|(b, _)| b).collect();
-            (max_idx, nexts)
+            (nexts, skip)
         })
         .collect::<Vec<_>>()
+}
+//fügt die linien wieder in die liste ein
+fn insert_lines(path: Vec<usize>, lines: Vec<Line>) -> Vec<usize> {
+    let mut line_map = lines
+        .iter()
+        .map(|l| [0, 1].into_iter().map(move |i| (l.ends[i], l.clone())))
+        .flatten()
+        .collect::<HashMap<_, _>>();
+    let mut new_path = vec![];
+    let mut p_skipped = false;
+    for (i, pt) in path.into_iter().enumerate() {
+        if let Some(line) = line_map.remove(&pt) {
+            if !p_skipped {
+                p_skipped = true;
+                //get line minus first and last point
+                let line = line.pts[1..line.pts.len() - 1].to_vec();
+                new_path.extend(line);
+                continue;
+            }
+        }
+        p_skipped = false;
+        new_path.push(pt);
+    }
+    new_path
 }
 fn find_n_n(costs: &CostMatrix, angle_list: &AngleOkList) -> Option<Vec<usize>> {
     //println!("costs: {}", costs);
     //println!("angle_list: {:?}, {}", angle_list, angle_list.is_ok(0, 1, 2));
-    let n_pts = costs.size;
+    
+    let lines = find_lines(costs, angle_list);
+    println!(
+        "lines: {:?}",
+        lines.iter().map(|l| l.ends).collect::<Vec<_>>()
+    );
     //findet die nähsten punkte zu jedem punkt
-    let short_paths: Vec<(usize, Vec<usize>)> = find_shortest_paths(costs);
+    let short_paths = find_shortest_paths(costs, &lines);
+
+    let start_pt = lines[0].ends[0];
     //println!("short_paths: {:?}", short_paths);
-    let mut path = vec![0];
+    let mut path = vec![start_pt];
     let mut idxs = vec![0];
+    let mut skips = vec![false];
+    let mut n_pts = costs.size;
     let mut free_pts = vec![true; n_pts];
+    //subtract the points that are on lines
+    for line in &lines {
+        n_pts -= line.pts.len() - 2;
+    }
     free_pts[0] = false;
     let mut i: u128 = 0;
     let mut n_back = 0;
@@ -415,8 +307,8 @@ fn find_n_n(costs: &CostMatrix, angle_list: &AngleOkList) -> Option<Vec<usize>> 
         i += 1;
         //*
         if i > (n_pts * n_pts * n_pts * n_pts) as u128 {
-            println!("this is taking too long, abort");
-            return None;
+            //println!("this is taking too long, abort");
+            //return None;
         }
         //*/
         // println!("path: {path:?}, idxs: {idxs:?}");
@@ -427,6 +319,7 @@ fn find_n_n(costs: &CostMatrix, angle_list: &AngleOkList) -> Option<Vec<usize>> 
         let level = idxs.len() - 1;
 
         let curr_pt = path[level];
+        let prev_was_skip = skips[level];
 
         //println!("level: {}, i: {}", level, i);
         let p_pt = if level > 0 {
@@ -435,58 +328,47 @@ fn find_n_n(costs: &CostMatrix, angle_list: &AngleOkList) -> Option<Vec<usize>> 
             None
         };
         let mut curr_idx = idxs.pop().unwrap();
-        let next_pt = loop {
-            let (max_idx, next_pts) = &short_paths[curr_pt];
-            // falls alle nächsten punkte ausgeschlossen wurden
-            // wird wieder zurückgegangen
-            if curr_idx + 1 >= n_pts {
-                n_back += 1;
-                if n_back > 1000000 {
+        let (next_pts, skip) = &short_paths[curr_pt];
+        let next_pt = if skip.is_some() && !prev_was_skip {
+            skips.push(true);
+            skip.unwrap()
+        } else {
+            skips.push(false);
+            loop {
+                // falls alle nächsten punkte ausgeschlossen wurden
+                // wird wieder zurückgegangen
+                if curr_idx >= next_pts.len() {
+                    n_back += 1;
+                    if n_back > 1000000 {
+                        //return Some(path);
+                    }
                     //return Some(path);
-                }
-                //return Some(path);
-                if i % 1_000_000 == 0 {
-                    println!("backtracking, len: {}, max_idx: {}", i, max_idx);
-                }
-                //println!("backtracking, len: {}, max_idx: {}", i, max_idx);
-                free_pts[curr_pt] = true;
-                path.pop();
+                    if i % 10_000_000 == 0 {
+                        println!("backtracking, len: {}, path: {:?}", i, path);
+                    }
+                    //println!("backtracking, len: {}, max_idx: {}", i, max_idx);
+                    free_pts[curr_pt] = true;
+                    path.pop();
+                    skips.pop();
 
-                continue 'main_loop;
-            }
-            let mut next_pt = next_pts[curr_idx];
-            //falls der näheste punkt schon benutzt wurde oder der winkel nicht passt
-            if !free_pts[next_pt]
-                || p_pt.is_some() && !angle_list.is_ok(p_pt.unwrap(), curr_pt, next_pt)
-            {
-                curr_idx += 1; //wird der nächstbeste punkt genommen
-            } else {
-                break next_pt;
+                    continue 'main_loop;
+                }
+                let mut next_pt = next_pts[curr_idx];
+                //falls der näheste punkt schon benutzt wurde oder der winkel nicht passt
+                if !free_pts[next_pt]
+                    || p_pt.is_some() && !angle_list.is_ok(p_pt.unwrap(), curr_pt, next_pt)
+                {
+                    curr_idx += 1; //wird der nächstbeste punkt genommen
+                } else {
+                    break next_pt;
+                }
             }
         };
-        /*
-        //falls der näheste punkt schon benutzt wurde oder der winkel nicht passt
-        while !free_pts[next_pt]
-            || p_pt.is_some() && !angle_list.is_ok(p_pt.unwrap(), curr_pt, next_pt)
-        {
-            //println!("taking next point instead current: {}, next_pt: {}", curr_pt, next_pt);
-            curr_idx += 1;//wird der nächstbeste punkt genommen
-            // falls alle nächsten punkte ausgeschlossen wurden
-            // wird wieder zurückgegangen
-            if curr_idx + 1 >= n_pts {
-                print!("backtracking, len: {}", idxs.len());
-                free_pts[curr_pt] = true;
-                path.pop();
-                // println!("continuing, len: {}", idxs.len());
-                continue 'main_loop;
-            }
-            // println!("curr_pt: {curr_pt}, idx: {curr_idx}");
-            next_pt = short_paths[curr_pt][curr_idx];
-        }
-        */
+
         path.push(next_pt);
         if path.len() == n_pts {
-            return Some(path);
+            let full_path = insert_lines(path, lines);
+            return Some(full_path);
         }
         //println!("moving to next point: {}", next_pt);
         free_pts[next_pt] = false;
@@ -595,7 +477,10 @@ fn find_path_jump(pts: Vec<Point>) -> Option<(Vec<Point>, f64)> {
         let costs = CostMatrix::new(&pts);
         if let Some(p) = find_n_n(&costs, &angle_list) {
             println!("found path with length: {}", p.len());
-            path = Some(p);
+            let path = idxs_to_pts(p, &pts);
+            return Some((path, 0.0));
+            //path = Some(p);
+            
             println!("found path: {:?}", path);
             break;
         }
@@ -694,7 +579,7 @@ fn find_path_jump(pts: Vec<Point>) -> Option<(Vec<Point>, f64)> {
     }
     let mut path = best_path.path.to_pts_arr(pts);
     println!("path: {:?}", path);
-    ///path.pop();
+    //path.pop();
     //println!("max queue len: {}", max_len);
     Some((path, upper_bound))
 }
@@ -837,16 +722,7 @@ fn draw_path(
         p_pt = Some(pt);
     }
 }
-fn make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {
-    let mut pts = vec![start];
-    let mut last_pt = start;
-    for _ in 1..n {
-        let new_pt = Point(last_pt.0 + dir.0, last_pt.1 + dir.1);
-        pts.push(new_pt.clone());
-        last_pt = new_pt;
-    }
-    pts
-}
+
 fn load_pts(path: &str) -> Vec<Point> {
     let s = fs::read_to_string(path).unwrap();
     s.split("\n")
@@ -864,6 +740,7 @@ fn load_pts(path: &str) -> Vec<Point> {
         })
         .collect()
 }
+
 //arguments
 #[derive(Parser)]
 struct Args {
@@ -900,7 +777,7 @@ fn main() {
         //let mut points = get_points((size, size), 7, &mut rng);
         //let points = make_line(40, Point(0.0,0.0), Dir(1.0, 0.0));
         //println!("points len: {}", points.len());
-        let mut points = load_pts("data/wenigerkrumm7.txt");
+        let mut points = load_pts("data/wenigerkrumm3.txt");
         let pt_bounds = calc_bounds(&points);
         //points.shuffle(&mut rng);
         let pts_len = points.len();
@@ -917,9 +794,31 @@ fn main() {
         let mut image = RgbaImage::from_fn(size as u32, size as u32, |_, _| {
             Rgba([0u8, 0u8, 0u8, 255u8])
         });
-
-        //let min_path = find_path_jump(points);
-        let min_path = Some((points.clone(), 0.0));
+        if true {
+            let costs = CostMatrix::new(&points);
+            let angle_list = AngleOkList::new(&points);
+            let lines = find_lines(&costs, &angle_list);
+            for line in lines {
+                println!("line: {:?}", line);
+                let line = idxs_to_pts(line.pts, &points);
+                draw_path(
+                    &line,
+                    &mut image,
+                    //size:
+                    (size, size),
+                    pt_bounds,
+                    [0u8, 0u8, 255u8, 255u8],
+                    [255u8, 0u8, 0u8, 255u8],
+                    //size - 700.0,
+                    true,
+                    true,
+                );
+            }
+            //image.save("out.png").unwrap();
+            //return;
+        }
+        let min_path = find_path_jump(points.clone());
+        //let min_path = Some((points.clone(), 0.0));
         if let Some(min_path_bnb) = /*find_path_jump(points)*/ min_path {
             println!(
                 "bnb len: {}, cost: {}",
@@ -940,38 +839,16 @@ fn main() {
                 [0u8, 0u8, 255u8, 255u8],
                 [0u8, 255u8, 0u8, 255u8],
                 //size - 700.0,
-                false,
-                false,
+                true,
+                true,
             );
-            //image.save("out.png").unwrap();
+            image.save("out.png").unwrap();
             println!("saved image");
             //break;
         } else {
             println!("didn't find any possible paths");
         }
-        if true {
-            let costs = CostMatrix::new(&points);
-            let angle_list = AngleOkList::new(&points);
-            let lines = find_lines(&costs, &angle_list);
-            for line in lines {
-                println!("line: {:?}", line);
-                let line = idxs_to_pts(line, &points);
-                draw_path(
-                    &line,
-                    &mut image,
-                    //size:
-                    (size, size),
-                    pt_bounds,
-                    [0u8, 0u8, 255u8, 255u8],
-                    [255u8, 0u8, 0u8, 255u8],
-                    //size - 700.0,
-                    true,
-                    true,
-                );
-            }
-            image.save("out.png").unwrap();
-            //return;
-        }
+        
         break;
     }
 }
