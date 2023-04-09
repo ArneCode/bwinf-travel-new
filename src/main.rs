@@ -722,7 +722,6 @@ fn draw_path(
         p_pt = Some(pt);
     }
 }
-
 fn load_pts(path: &str) -> Vec<Point> {
     let s = fs::read_to_string(path).unwrap();
     s.split("\n")
@@ -740,7 +739,6 @@ fn load_pts(path: &str) -> Vec<Point> {
         })
         .collect()
 }
-
 //arguments
 #[derive(Parser)]
 struct Args {
@@ -751,6 +749,8 @@ struct Args {
     #[clap(short, long)]
     path: String,
 }
+
+
 
 fn main() {
     let start = Instant::now();
@@ -842,7 +842,7 @@ fn main() {
                 true,
                 true,
             );
-            image.save("out.png").unwrap();
+            //image.save("out.png").unwrap();
             println!("saved image");
             //break;
         } else {
