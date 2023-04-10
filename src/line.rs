@@ -18,7 +18,7 @@ fn make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {
     let mut last_pt = start;
     for _ in 1..n {
         let new_pt = Point(last_pt.0 + dir.0, last_pt.1 + dir.1);
-        pts.push(new_pt.clone());
+        pts.push(new_pt);
         last_pt = new_pt;
     }
     pts
@@ -30,7 +30,7 @@ pub fn find_lines(costs: &CostMatrix, angle_list: &AngleOkList) -> Vec<Line> {
     //finding line segments
     for start in 0..n_pts {
         let mut nexts = (0..n_pts)
-            .filter_map(|b| Some((b, costs.get(start, b).clone()?)))
+            .filter_map(|b| Some((b, (*costs.get(start, b))?)))
             .collect::<Vec<_>>();
         nexts.sort_by(|a, b| a.1.total_cmp(&b.1));
         let (pt_0, dist_0) = nexts[0];

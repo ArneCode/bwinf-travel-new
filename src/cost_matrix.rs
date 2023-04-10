@@ -10,13 +10,13 @@ pub struct CostMatrix {
 impl fmt::Display for CostMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut i = 0;
-        writeln!(f, "")?;
-        for y in 0..self.size {
-            for x in 0..self.size {
+        writeln!(f)?;
+        for _y in 0..self.size {
+            for _x in 0..self.size {
                 write!(f, "{:.0}\t", self.data[i].unwrap_or(f64::NAN))?;
                 i += 1;
             }
-            writeln!(f, "")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -85,9 +85,9 @@ impl CostMatrix {
     }
     pub fn reduce(&mut self) -> f64 {
         // println!("reducing matrix, before: {}", self);
-        let cost = self.reduce_lines(false) + self.reduce_lines(true);
+
         // println!("after: {self}, cost: {cost}");
-        cost
+        self.reduce_lines(false) + self.reduce_lines(true)
     }
     pub fn add_path(&self, start: usize, end: usize) -> Option<(f64, CostMatrix)> {
         // println!("adding path, start: {start}, end: {end}");
