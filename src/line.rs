@@ -20,7 +20,7 @@ impl Line {
         cost
     }
 }
-fn make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {
+fn _make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {
     let mut pts = vec![start];
     let mut last_pt = start;
     for _ in 1..n {
@@ -93,16 +93,7 @@ pub fn find_lines(costs: &CostMatrix, angle_list: &AngleOkList) -> Vec<Line> {
         }
         //transform line into a vector
         let line = line.into_iter().collect::<Vec<_>>();
-        if line.len() < 35 {
-            let pt_idx = line.iter().position(|&x| x == pt).unwrap();
-            println!(
-                "line too short, start: {}, idx: {}/{}",
-                pt,
-                pt_idx,
-                line.len()
-            );
-        }
-        if line.len() > 5 {
+        if line.len() > 4 {
             lines.push(Line::new(line));
         }
     }
