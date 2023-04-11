@@ -2,7 +2,7 @@ use std::collections::{HashMap, LinkedList};
 
 use crate::{angle_list::AngleOkList, CostMatrix, Dir, Point};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Line {
     pub ends: [usize; 2],
     pub pts: Vec<usize>,
@@ -11,6 +11,13 @@ impl Line {
     fn new(pts: Vec<usize>) -> Self {
         let ends = [pts[0], pts[pts.len() - 1]];
         Self { ends, pts }
+    }
+    pub fn get_cost(&self, costs: &CostMatrix) -> f64 {
+        let mut cost = 0.0;
+        for i in 0..self.pts.len() - 1 {
+            cost += costs.get(self.pts[i], self.pts[i + 1]).unwrap();
+        }
+        cost
     }
 }
 fn make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {

@@ -2,6 +2,7 @@ use std::{f64::consts::PI, fmt::Debug};
 
 use crate::{angle_ok, Point};
 
+#[derive(Clone)]
 pub struct AngleOkList {
     data: Vec<bool>,
     n_points: usize,

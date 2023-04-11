@@ -1,0 +1,15 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{impl}\PYG{+w}{ }\PYG{n}{PiecesMap}\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{c+cm}{/* ... */}
+\PYG{+w}{    }\PYG{k}{fn} \PYG{n+nf}{make\PYGZus{}copy}\PYG{p}{(}\PYG{o}{\PYGZam{}}\PYG{k}{mut}\PYG{+w}{ }\PYG{n+nb+bp}{self}\PYG{p}{)}\PYG{+w}{ }\PYGZhy{}\PYGZgt{} \PYG{n+nc}{Self}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{        }\PYG{k}{if}\PYG{+w}{ }\PYG{n+nb+bp}{self}\PYG{p}{.}\PYG{n}{added}\PYG{p}{.}\PYG{n}{len}\PYG{p}{()}\PYG{+w}{ }\PYG{o}{\PYGZgt{}}\PYG{+w}{ }\PYG{n+nb+bp}{self}\PYG{p}{.}\PYG{n}{base}\PYG{p}{.}\PYG{n}{len}\PYG{p}{()}\PYG{+w}{ }\PYG{o}{/}\PYG{+w}{ }\PYG{l+m+mi}{10}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{c+c1}{//Die Länge der added\PYGZhy{}Hashmap auf ein 10\PYGZhy{}tel der base Hashmap einzuschränken}
+\PYG{+w}{            }\PYG{c+c1}{//scheint beim ausprobieren zu einem guten kompromiss zwischen kopier\PYGZhy{}}
+\PYG{+w}{            }\PYG{c+c1}{//und merge\PYGZhy{}dauer zu ermöglichen}
+\PYG{+w}{            }\PYG{n+nb+bp}{self}\PYG{p}{.}\PYG{n}{merge}\PYG{p}{();}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{        }\PYG{n+nb+bp}{self}\PYG{p}{.}\PYG{n}{clone}\PYG{p}{()}
+\PYG{+w}{    }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{    }\PYG{c+cm}{/* ... */}
+\PYG{p}{\PYGZcb{}}
+\end{Verbatim}

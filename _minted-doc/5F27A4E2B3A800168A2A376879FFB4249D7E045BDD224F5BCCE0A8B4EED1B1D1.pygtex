@@ -1,0 +1,22 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{//wandle zuerst die überbleibenden Scheibenliste in einen Pointer um,}
+\PYG{c+c1}{//damit sie einmal weniger kopiert werden müssen (siehe Dokumentation)}
+\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{pieces\PYGZus{}ptr}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nb}{Box}::\PYG{n}{into\PYGZus{}raw}\PYG{p}{(}\PYG{n}{pieces}\PYG{p}{);}
+\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{n\PYGZus{}side}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{new\PYGZus{}sides}\PYG{p}{.}\PYG{n}{len}\PYG{p}{();}
+\PYG{n}{new\PYGZus{}sides}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{into\PYGZus{}iter}\PYG{p}{()}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{enumerate}\PYG{p}{()}
+\PYG{+w}{    }\PYG{p}{.}\PYG{n}{map}\PYG{p}{(}\PYG{k}{move}\PYG{+w}{ }\PYG{o}{|}\PYG{p}{(}\PYG{n}{i}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{new\PYGZus{}side}\PYG{p}{)}\PYG{o}{|}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{        }\PYG{c+c1}{//wenn es die letzte neue Seite ist, verwende die Scheibenliste,}
+\PYG{+w}{        }\PYG{c+c1}{//ohne sie zu kopieren}
+\PYG{+w}{        }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{k}{mut}\PYG{+w}{ }\PYG{n}{pieces}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{k}{if}\PYG{+w}{ }\PYG{n}{i}\PYG{+w}{ }\PYG{o}{==}\PYG{+w}{ }\PYG{n}{n\PYGZus{}side}\PYG{+w}{ }\PYG{o}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+m+mi}{1}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{k}{unsafe}\PYG{+w}{ }\PYG{p}{\PYGZob{}}\PYG{+w}{ }\PYG{n+nb}{Box}::\PYG{n}{from\PYGZus{}raw}\PYG{p}{(}\PYG{n}{pieces\PYGZus{}ptr}\PYG{p}{)}\PYG{+w}{ }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}\PYG{+w}{ }\PYG{k}{else}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{c+c1}{//ansonsten kopiere die Liste}
+\PYG{+w}{             }\PYG{n+nb}{Box}::\PYG{n}{new}\PYG{p}{(}\PYG{k}{unsafe}\PYG{+w}{ }\PYG{p}{\PYGZob{}}\PYG{+w}{ }\PYG{n}{pieces\PYGZus{}ptr}\PYG{p}{.}\PYG{n}{as\PYGZus{}mut}\PYG{p}{()}\PYG{+w}{ }\PYG{p}{\PYGZcb{}.}\PYG{n}{unwrap}\PYG{p}{().}\PYG{n}{make\PYGZus{}copy}\PYG{p}{())}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{};}
+\PYG{+w}{        }\PYG{c+cm}{/*}
+\PYG{c+cm}{        ...}
+\PYG{c+cm}{        */}
+\PYG{+w}{    }\PYG{p}{\PYGZcb{})}
+\end{Verbatim}

@@ -1,0 +1,7 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{pub}\PYG{+w}{ }\PYG{k}{struct} \PYG{n+nc}{PossPath}\PYG{+w}{ }\PYG{p}{\PYGZob{}}\PYG{+w}{ }\PYG{c+c1}{//Ein möglicher Pfad}
+\PYG{+w}{    }\PYG{n}{cheese}: \PYG{n+nc}{Cheese}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{prev\PYGZus{}pieces}: \PYG{n+nc}{PrevPieces}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{pieces\PYGZus{}left}: \PYG{n+nb}{Box}\PYG{o}{\PYGZlt{}}\PYG{n}{PiecesMap}\PYG{o}{\PYGZgt{}}\PYG{p}{,}
+\PYG{p}{\PYGZcb{}}
+\end{Verbatim}

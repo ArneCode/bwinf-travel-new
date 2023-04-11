@@ -1,0 +1,12 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{while}\PYG{+w}{ }\PYG{o}{!}\PYG{n}{top\PYGZus{}paths}\PYG{p}{.}\PYG{n}{is\PYGZus{}empty}\PYG{p}{()}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{k}{mut}\PYG{+w}{ }\PYG{n}{new\PYGZus{}top\PYGZus{}paths}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nf+fm}{vec!}\PYG{p}{[];}
+\PYG{+w}{    }\PYG{o}{\PYGZsq{}}\PYG{n+na}{sub\PYGZus{}loop}: \PYG{n+nc}{for}\PYG{+w}{ }\PYG{n}{sub\PYGZus{}paths}\PYG{+w}{ }\PYG{k}{in}\PYG{+w}{ }\PYG{n}{top\PYGZus{}paths}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{        }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{k}{mut}\PYG{+w}{ }\PYG{n}{new\PYGZus{}paths}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nf+fm}{vec!}\PYG{p}{[];}
+\PYG{+w}{        }\PYG{k}{for}\PYG{+w}{ }\PYG{p}{(}\PYG{n}{cheese}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{path}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{pieces}\PYG{p}{)}\PYG{+w}{ }\PYG{k}{in}\PYG{+w}{ }\PYG{n}{sub\PYGZus{}paths}\PYG{p}{.}\PYG{n}{into\PYGZus{}iter}\PYG{p}{()}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{            }\PYG{k+kd}{let}\PYG{+w}{ }\PYG{n}{paths}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n}{cheese}\PYG{p}{.}\PYG{n}{gen\PYGZus{}poss\PYGZus{}paths}\PYG{p}{(}\PYG{n}{path}\PYG{p}{,}\PYG{+w}{ }\PYG{n}{pieces}\PYG{p}{);}
+\PYG{+w}{            }\PYG{n}{new\PYGZus{}paths}\PYG{p}{.}\PYG{n}{extend}\PYG{p}{(}\PYG{n}{paths}\PYG{p}{);}
+\PYG{+w}{        }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{    }\PYG{p}{\PYGZcb{}}
+\PYG{p}{\PYGZcb{}}
+\end{Verbatim}

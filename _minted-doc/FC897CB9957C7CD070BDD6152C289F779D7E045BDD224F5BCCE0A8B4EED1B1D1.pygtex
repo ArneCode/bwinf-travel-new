@@ -1,0 +1,7 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{struct} \PYG{n+nc}{PiecesMap}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{n}{base}: \PYG{n+nc}{Rc}\PYG{o}{\PYGZlt{}}\PYG{n}{FxHashMap}\PYG{o}{\PYGZlt{}}\PYG{n}{Piece}\PYG{p}{,}\PYG{+w}{ }\PYG{k+kt}{u32}\PYG{o}{\PYGZgt{}\PYGZgt{}}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{base\PYGZus{}id}: \PYG{n+nc}{Uuid}\PYG{p}{,}
+\PYG{+w}{    }\PYG{n}{added}: \PYG{n+nc}{FxHashMap}\PYG{o}{\PYGZlt{}}\PYG{n}{Piece}\PYG{p}{,}\PYG{+w}{ }\PYG{k+kt}{u32}\PYG{o}{\PYGZgt{}}\PYG{p}{,}
+\PYG{p}{\PYGZcb{}}
+\end{Verbatim}
