@@ -3,11 +3,11 @@ use std::fmt;
 use crate::Point;
 
 #[derive(Clone, Debug)]
-pub struct CostMatrix {
+pub struct CostList {
     data: Vec<Option<f64>>,
     pub size: usize,
 }
-impl fmt::Display for CostMatrix {
+impl fmt::Display for CostList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut i = 0;
         writeln!(f)?;
@@ -21,7 +21,7 @@ impl fmt::Display for CostMatrix {
         Ok(())
     }
 }
-impl CostMatrix {
+impl CostList {
     pub fn new(points: &Vec<Point>) -> Self {
         let size = points.len();
         let mut data = vec![None; size * size];
@@ -42,5 +42,14 @@ impl CostMatrix {
     }
     pub fn get(&self, x: usize, y: usize) -> &Option<f64> {
         &self.data[self.get_idx(x, y)]
+    }
+    pub fn calc_len(&self, path: &Vec<usize>) -> f64 {
+        let mut len = 0.0;
+        for i in 0..path.len() - 1 {
+            let x = path[i];
+            let y = path[i + 1];
+            len += self.get(x, y).unwrap();
+        }
+        len
     }
 }

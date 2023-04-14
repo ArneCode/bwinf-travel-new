@@ -963,7 +963,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "travel-new"
+name = "travel"
 version = "0.1.0"
 dependencies = [
  "clap",

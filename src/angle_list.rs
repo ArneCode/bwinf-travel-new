@@ -20,9 +20,6 @@ impl AngleOkList {
                     let idx = Self::get_idx(n_points, (i1, i2, i3));
                     let angle = dir1.angle_to(&dir2);
                     data[idx] = angle_ok(angle);
-                    if i3 == 7 && i2 == 73 && i1 == 19 {
-                        println!("{} {} {} {}, {}", i1, i2, i3, angle * 180.0 / PI, data[idx]);
-                    }
                 }
             }
         }
