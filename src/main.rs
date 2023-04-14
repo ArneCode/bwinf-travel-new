@@ -38,7 +38,7 @@ impl Dir {
 fn angle_ok(a: f64) -> bool {
     //cut off up to the 3rd decimal place
     let a = (a * 1000.0).round() / 1000.0;
-    a <= 90.0 || a >= 270.0 || true
+    a <= 90.0 || a >= 270.0
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point(f64, f64);
@@ -464,7 +464,6 @@ fn main() {
     //points.shuffle(&mut rng);
     let _pts_len = points.len();
 
-    
     let mut image = RgbaImage::from_fn(size as u32, size as u32, |_, _| {
         Rgba([255u8, 255u8, 255u8, 255u8])
     });

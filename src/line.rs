@@ -5,14 +5,14 @@ use crate::{angle_list::AngleOkList, CostList, Dir, Point};
 #[derive(Debug, Clone)]
 pub struct Line {
     pub ends: [usize; 2],
-    pub seconds:[usize; 2],
+    pub seconds: [usize; 2],
     pub pts: Vec<usize>,
 }
 impl Line {
     fn new(pts: Vec<usize>) -> Self {
         let ends = [pts[0], pts[pts.len() - 1]];
         let seconds = [pts[1], pts[pts.len() - 2]];
-        Self { ends, pts , seconds}
+        Self { ends, pts, seconds }
     }
     pub fn get_cost(&self, costs: &CostList) -> f64 {
         let mut cost = 0.0;
@@ -51,7 +51,9 @@ pub fn find_lines(costs: &CostList, angle_list: &AngleOkList, line_min: usize) -
 
         // Überprüfen, ob die nächsten drei Punkte ein Liniensegment bilden
         let security = 1.5;
-        if angle_list.is_ok(pt_0, start, pt_1)
+        if dist_1 < dist_0 * security
+            && dist_2 > dist_1 * security
+            && angle_list.is_ok(pt_0, start, pt_1)
         {
             // Speichern des möglichen Liniensegments in der HashMap
             line_segments.insert(start, (pt_0, pt_1));
