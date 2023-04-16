@@ -412,6 +412,9 @@ fn save_pts(path: &str, pts: &[Point]) -> Result<(), std::io::Error> {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
+    ///Ob die Punkte angezeigt werden sollen
+    #[arg(long)]
+    show_points: bool,
     ///Ob die linien angezeigt werden sollen
     #[arg(long)]
     show_lines: bool,
@@ -421,9 +424,12 @@ pub struct Args {
     ///Ob der Pfad berechnet werden soll
     #[arg(long)]
     no_calc: bool,
-    ///Ob die Punkte angezeigt werden sollen
+    ///Ob direkt abgebrochen werden soll, wenn ein Pfad gefunden wurde
     #[arg(long)]
-    show_points: bool,
+    stop_on_found: bool,
+    ///Ob der Winkel überprüft werden soll
+    #[arg(long)]
+    dont_check_angle: bool,
     ///Die Punkte-Datei
     #[clap(required = true)]
     path: String,
@@ -439,7 +445,7 @@ pub struct Args {
     ///Linienbreite
     #[arg(long, default_value = "3")]
     line_width: i32,
-    ///Wo das Bild gespeichert werden soll
+    ///Wo das Bild gespeichert werden soll (mehrere Dateiformate möglich)
     #[arg(long, default_value = "out.png")]
     img_path: String,
     ///Wo der Pfad gespeichert werden soll
@@ -448,15 +454,20 @@ pub struct Args {
     ///Wie lange der Pfad berechnet werden soll
     #[arg(long, default_value = "10000000")]
     max_iter: u128,
+    ///Der wievielte Startpunkt genutzt werden soll, optional
+    #[arg(long)]
+    start_pt_n: Option<usize>,
+    ///Ob nach dem Startpunkt gesucht werden soll
+    #[arg(long)]
+    search_start: bool,
 }
 
 fn main() {
     let args = Args::parse();
-    let start = Instant::now();
     let size = args.img_size;
     let mut rng = rand::thread_rng();
     let mut points = load_pts(&args.path);
-    println!("Punkte aus Datei geladen");
+    println!("{} Punkte aus Datei geladen", points.len());
     if false {
         points.shuffle(&mut rng);
     }
@@ -482,7 +493,7 @@ fn main() {
     }
     if args.show_lines {
         let costs = CostList::new(&points);
-        let angle_list = AngleOkList::new(&points);
+        let angle_list = AngleOkList::new(&points, &args);
         let lines = find_lines(&costs, &angle_list, args.line_min);
         for line in lines {
             println!("line: {:?}", line);
@@ -502,14 +513,16 @@ fn main() {
 
     if !args.no_calc {
         println!("Suche Weg...");
+        let start = Instant::now();
         let mut finder = PathFinder::new(&points, &args);
         if let Some(min_path) = finder.find() {
+            let elapsed = start.elapsed();
             let len = get_len(&min_path);
-            println!("Weg gefunden, Länge: {}", len);
+            println!("\tDauer (mit Vorberechnungen): {:?}", elapsed);
+            println!("\tLänge: {}", len);
             check_angles(&min_path);
 
-            let elapsed = start.elapsed();
-            println!("finden des Wegs hat {:?} gedauert", elapsed);
+            
             draw_path(
                 &min_path,
                 &mut image,

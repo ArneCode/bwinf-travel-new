@@ -1,6 +1,6 @@
 use std::{f64::consts::PI, fmt::Debug};
 
-use crate::{angle_ok, Point};
+use crate::{angle_ok, Point, Args};
 
 #[derive(Clone)]
 pub struct AngleOkList {
@@ -8,7 +8,7 @@ pub struct AngleOkList {
     n_points: usize,
 }
 impl AngleOkList {
-    pub fn new(points: &Vec<Point>) -> Self {
+    pub fn new(points: &Vec<Point>, args: &Args) -> Self {
         let n_points = points.len();
         let mut data = vec![false; n_points * n_points * n_points];
         for (i3, p3) in points.iter().enumerate() {
@@ -19,7 +19,7 @@ impl AngleOkList {
                     let dir2 = p2.dir_to(p3);
                     let idx = Self::get_idx(n_points, (i1, i2, i3));
                     let angle = dir1.angle_to(&dir2);
-                    data[idx] = angle_ok(angle);
+                    data[idx] = angle_ok(angle) || args.dont_check_angle;
                 }
             }
         }

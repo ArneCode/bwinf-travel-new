@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Instant};
 
 use crate::{
     angle_list::AngleOkList,
@@ -20,7 +20,7 @@ pub struct PathFinder<'a> {
     n_pts: usize,            //Anzahl der Punkte (ohne Linienpunkte)
     angle_list: AngleOkList, //Welche Punkte mit welchem Punkt verbunden werden können
 
-    costs: CostList,                     //Abstand zwischen allen Punkten
+    cost_list: CostList,                 //Abstand zwischen allen Punkten
     min_costs: Vec<(f64, f64)>,          //Mindestabstände für jeden Punkt
     nearest_pts: Vec<Vec<(usize, f64)>>, //nächste Punkte für jeden Punkt
     //Die Punkte sortiert nach zweitbestem Abstand (siehe Branch and Bound Umsetzung)
@@ -52,17 +52,13 @@ impl<'a> PathFinder<'a> {
     /// erzeugt ein neues PathFinder Objekt, berechnet dabei viele Werte vorab
     pub fn new(points: &'a Vec<Point>, args: &'a Args) -> Self {
         let costs = CostList::new(points);
-        let angle_list = AngleOkList::new(&points);
+        let angle_list = AngleOkList::new(&points, &args);
         let lines = if !args.dont_use_lines {
             find_lines(&costs, &angle_list, args.line_min)
         } else {
             vec![]
         };
-        /*
-        println!(
-            "lines: {:?}",
-            lines.iter().map(|l| l.ends).collect::<Vec<_>>()
-        );*/
+
         let nearest_pts = find_nearest_pts(&costs, &lines);
         let available_skips = get_skips(&costs, &lines);
         let mut n_pts = costs.size;
@@ -91,10 +87,13 @@ impl<'a> PathFinder<'a> {
             costs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
             costs
         };
+        let start_pt_n = args.start_pt_n.unwrap_or(0);
         //find the start point
-        let start_pt = max_second_costs[0].0;
+        let start_pt = max_second_costs[start_pt_n].0;
+        println!("start_pt: {}", start_pt);
+        let curr_end_idx = if start_pt_n == 0 { 1 } else { 0 };
         let cost = {
-            let max_idx = max_second_costs[1].0;
+            let max_idx = max_second_costs[curr_end_idx].0;
             let mut cost = 0.0;
             for (i, (first, second)) in min_costs.iter().enumerate() {
                 if line_pts.contains(&i) {
@@ -114,7 +113,7 @@ impl<'a> PathFinder<'a> {
         for line in &lines {
             n_pts -= line.pts.len() - 2;
         }
-        let curr_end_idx = 1;
+
         let went_back = false;
 
         let path = vec![start_pt];
@@ -140,7 +139,7 @@ impl<'a> PathFinder<'a> {
             curr_end_idx,
             prev_end_idxs,
             min_costs,
-            costs,
+            cost_list: costs,
             cost,
             free_pts,
             n_runs,
@@ -155,7 +154,10 @@ impl<'a> PathFinder<'a> {
         self.prev_costs = vec![self.cost];
         self.prev_skips = vec![None];
         self.prev_end_idxs = vec![0];
+        let prev_end = self.max_second_costs[self.curr_end_idx];
         self.curr_end_idx = 0;
+        let curr_end = self.max_second_costs[self.curr_end_idx];
+        self.cost += curr_end.1 - prev_end.1;
         self.went_back = false;
         self.free_pts = vec![true; self.free_pts.len()];
         self.free_pts[self.start_pt] = false;
@@ -300,11 +302,62 @@ impl<'a> PathFinder<'a> {
     }
     /// findet mögliche Wege
     pub fn find(&mut self) -> Option<Vec<Point>> {
+        let start = Instant::now();
+        let mut best_start_n = None;
+        let mut best_start = None;
+        let mut best_cost = f64::INFINITY;
         loop {
             if let Some(result) = self.run() {
+                if self.args.search_start {
+                    let cost = self.cost_list.calc_len(&result);
+                    if cost < best_cost {
+                        best_cost = cost;
+                        best_start_n = Some(self.n_runs);
+                        best_start = Some(self.start_pt);
+                        println!(
+                            "\nNeuer bester Startpunkt, Nummer: {}, Punkt: {}\n",
+                            self.n_runs, self.start_pt
+                        );
+                    } else {
+                        println!("\nStartpunkt Nummer {} ist nicht besser als der bisher beste Startpunkt\n", self.n_runs);
+                    }
+                    if self.n_runs >= self.n_pts - 1 {
+                        if let Some(best_start_n) = best_start_n {
+                            println!(
+                                "Bester Startpunkt ist Startpunkt Nummer {}: {}, Cost: {}",
+                                best_start_n,
+                                best_start.unwrap(),
+                                best_cost
+                            );
+                        } else {
+                            println!("Kein Startpunkt gefunden");
+                        }
+                    } else {
+                        self.next_start();
+                        continue;
+                    }
+                }
+                println!("Pfad gefunden");
+                println!("\tDauer (ohne Vorberechnungen): {:?}", start.elapsed());
                 //Indexe werden in Punkte umgewandelt
                 let points = idxs_to_pts(result, self.points);
                 return Some(points);
+            }
+            if self.n_runs >= self.n_pts - 1 {
+                if self.args.search_start {
+                    if let Some(best_start_n) = best_start_n {
+                        println!(
+                            "Bester Startpunkt ist Startpunkt Nummer {}: {}, Cost: {}",
+                            best_start_n,
+                            best_start.unwrap(),
+                            best_cost
+                        );
+                    } else {
+                        println!("Kein Startpunkt gefunden");
+                    }
+                }
+                println!("kein Pfad gefunden");
+                return None;
             }
             println!("kein Pfad gefunden, nächster Startpunkt");
             self.next_start();
@@ -408,8 +461,10 @@ impl<'a> PathFinder<'a> {
                     );
                     min_cost = self.cost;
                     min_path = Some(full_path.clone());
-                    //println!("costs: {:?}, move cost: {}, n_p_costs: {}", self.stack.prev_costs, move_cost, self.stack.prev_costs.len());
-                    //return min_path;
+                    if self.args.stop_on_found {
+                        println!("--stop_on_found benutzt, beende Suche");
+                        return min_path;
+                    }
                 }
                 self.backtrack(next_pt);
 
