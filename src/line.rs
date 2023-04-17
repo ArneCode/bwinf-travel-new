@@ -1,19 +1,21 @@
 use std::collections::{HashMap, LinkedList};
 
-use crate::{angle_list::AngleOkList, CostList, Dir, Point};
+use crate::{angle_list::AngleOkList, CostList};
 
 #[derive(Debug, Clone)]
 pub struct Line {
-    pub ends: [usize; 2],
-    pub seconds: [usize; 2],
-    pub pts: Vec<usize>,
+    pub ends: [usize; 2], // Start und Endpunkt
+    pub seconds: [usize; 2], // Zweiter und vorletzter Punkt
+    pub pts: Vec<usize>, // Alle Punkte der Linie
 }
 impl Line {
+    // Erstellt eine neue Linie
     fn new(pts: Vec<usize>) -> Self {
         let ends = [pts[0], pts[pts.len() - 1]];
         let seconds = [pts[1], pts[pts.len() - 2]];
         Self { ends, pts, seconds }
     }
+    // Gibt die Länge der Linie zurück
     pub fn get_cost(&self, costs: &CostList) -> f64 {
         let mut cost = 0.0;
         for i in 0..self.pts.len() - 1 {
@@ -22,16 +24,7 @@ impl Line {
         cost
     }
 }
-fn _make_line(n: usize, start: Point, dir: Dir) -> Vec<Point> {
-    let mut pts = vec![start];
-    let mut last_pt = start;
-    for _ in 1..n {
-        let new_pt = Point(last_pt.0 + dir.0, last_pt.1 + dir.1);
-        pts.push(new_pt);
-        last_pt = new_pt;
-    }
-    pts
-}
+/// Findet alle Linien in den Punkten
 pub fn find_lines(costs: &CostList, angle_list: &AngleOkList, line_min: usize) -> Vec<Line> {
     println!("Linien finden...");
     let n_pts = costs.size;
@@ -84,6 +77,7 @@ pub fn find_lines(costs: &CostList, angle_list: &AngleOkList, line_min: usize) -
 
         // Erweiterung der Linie in eine Richtung
         while let Some((a, b)) = line_segments.remove(&end) {
+            //Finde den Punkt, der noch nicht Teil der Linie ist
             let new_end = if a == p_pt { b } else { a };
             if used_pts[new_end] {
                 break;
@@ -97,6 +91,7 @@ pub fn find_lines(costs: &CostList, angle_list: &AngleOkList, line_min: usize) -
 
         // Erweiterung der Linie in die andere Richtung
         while let Some((a, b)) = line_segments.remove(&start) {
+            //Finde den Punkt, der noch nicht Teil der Linie ist
             let new_start = if a == p_pt { b } else { a };
             if used_pts[new_start] {
                 break;
@@ -114,4 +109,77 @@ pub fn find_lines(costs: &CostList, angle_list: &AngleOkList, line_min: usize) -
         }
     }
     lines
+}
+/// Speichert Sprünge
+#[derive(Clone)]
+pub struct Skip {
+    pub end: usize,            //Ende der Linie
+    pub second_pt: usize,      //Der Punkt nach dem Anfang der Linie
+    pub penultimate_pt: usize, //Der Punkt vor dem Ende der Linie
+    pub cost: f64,             //Wie lange die Linie ist
+}
+impl Skip {
+    // Erstellt einen neuen Sprung
+    fn new(end: usize, second_pt: usize, penultimate_pt: usize, cost: f64) -> Self {
+        Self {
+            end,
+            second_pt,
+            penultimate_pt,
+            cost,
+        }
+    }
+}
+/// Erstellt eine Liste von Sprüngen aus einer Liste von Linien
+pub fn get_skips(costs: &CostList, lines: &Vec<Line>) -> Vec<Option<Skip>> {
+    //Gibt an, ob der Punkt an einem bestimmten Index Endpunkt einer Linie ist
+    let mut skips = vec![None; costs.size]; 
+    for line in lines {
+        // Ein Sprung für beide Enden der Linie erstellen
+        for (skip_start, skip_end) in [(0, 1), (1, 0)].iter() {
+            let second_pt = line.seconds[*skip_start];
+            let penultimate_pt = line.seconds[*skip_end];
+            let skip = Skip::new(
+                line.ends[*skip_end],
+                second_pt,
+                penultimate_pt,
+                line.get_cost(costs),
+            );
+            // Füge den Sprung in die Liste ein
+            skips[line.ends[*skip_start]] = Some(skip);
+        }
+    }
+    skips
+}
+//fügt die linien wieder in die liste ein
+pub fn insert_lines(path: &Vec<usize>, lines: Vec<Line>) -> Vec<usize> {
+    // Die Linie aus der sicht des Endpunktes aus,
+    // gespeichert nach Endpunkt
+    let mut line_map = lines
+        .iter()
+        .flat_map(|l| {
+            [0, 1].into_iter().map(move |i| {
+                if i == 0 {
+                    (l.ends[i], l.pts.clone())
+                } else {
+                    (l.ends[i], l.pts.iter().rev().cloned().collect())
+                }
+            })
+        })
+        .collect::<HashMap<_, _>>();
+    let mut new_path = vec![];
+    let mut p_skipped = false;
+    for pt in path {
+        // Wenn der Punkt Teil einer Linie ist, füge die Linie ein
+        if let Some(line) = line_map.remove(&pt) {
+            // Es wird überprüft, ob die Linie gerade schon eingefügt wurde
+            if !p_skipped {
+                p_skipped = true;
+                new_path.extend(line[..line.len() - 1].iter().cloned());
+                continue;
+            }
+        }
+        p_skipped = false;
+        new_path.push(*pt);
+    }
+    new_path
 }

@@ -2,11 +2,37 @@ use std::{collections::HashSet, time::Instant};
 
 use crate::{
     angle_list::AngleOkList,
-    cost_list::CostList,
-    find_min_cost, find_nearest_pts, get_skips, idxs_to_pts, insert_lines,
-    line::{find_lines, Line},
-    Args, Point, Skip,
+    cost_list::CostList, idxs_to_pts, 
+    line::{find_lines, Line, insert_lines, get_skips, Skip},
+    Args, Point,
 };
+
+//Findet die dichtesten Punkte für jeden Punkt
+fn find_nearest_pts(costs: &CostList, lines: &Vec<Line>) -> Vec<Vec<(usize, f64)>> {
+    //Punkt die auf einer Linie liegen
+    let line_pts: HashSet<usize> = lines
+        .iter()
+        .flat_map(|l| -> Vec<usize> { (l.pts[1..l.pts.len() - 1]).to_vec() })
+        .collect();
+    let n_pts = costs.size;
+    let result = (0..n_pts)
+        .map(|start| {
+            let mut nexts = (0..n_pts)
+                .filter_map(|b| {
+                    // ignoriert, wenn der Punkt auf einer Linie liegt
+                    if line_pts.contains(&b) {
+                        return None;
+                    }
+                    Some((b, (*costs.get(start, b))?))
+                })
+                .collect::<Vec<_>>();
+            // sortiert nach Abstand
+            nexts.sort_by(|a, b| a.1.total_cmp(&b.1));
+            nexts
+        })
+        .collect::<Vec<_>>();
+    result
+}
 //Ist für die Berechnung des Pfades zuständig
 //Da diese Klasse für viele Sachen zuständig ist,
 //ist die Anzahl der Member-Variablen relativ groß.
@@ -58,24 +84,26 @@ impl<'a> PathFinder<'a> {
         } else {
             vec![]
         };
-
+        // findet die dichtesten Punkte für jeden Punkt
         let nearest_pts = find_nearest_pts(&costs, &lines);
+        // findet die Punkte, von denen aus gesprungen werden kann
         let available_skips = get_skips(&costs, &lines);
         let mut n_pts = costs.size;
         let line_pts: HashSet<usize> = lines
             .iter()
             .flat_map(|l| -> Vec<usize> { (l.pts[1..l.pts.len() - 1]).to_vec() })
             .collect();
-        //find the first and second cost for every point
+        //findet die ersten und zweiten Kosten für jeden Punkt
         let min_costs = nearest_pts
             .iter()
             .map(|nexts| -> (f64, f64) {
-                //return the first and second element, and thus the first and second lowest costs
+                //geb die ersten und zweiten Elemente zurück, 
+                //und somit die ersten und zweiten niedrigsten Kosten
                 let costs = nexts.iter().map(|(_b, cost)| cost).collect::<Vec<_>>();
                 (*costs[0], *costs[1])
             })
             .collect::<Vec<_>>();
-        //find the point with the highest second cost (not in the line or the start point)
+        //findet den Punkt mit dem zweithöchsten Abstand (nicht auf einer Linie oder dem Startpunkt)
         let max_second_costs = {
             let mut costs = min_costs
                 .iter()
@@ -83,15 +111,16 @@ impl<'a> PathFinder<'a> {
                 .filter(|(i, _)| !line_pts.contains(i))
                 .map(|(i, (_a, b))| (i, *b))
                 .collect::<Vec<_>>();
-            //sort by second cost descending
+            //sortiert nach Kosten absteigend
             costs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
             costs
         };
         let start_pt_n = args.start_pt_n.unwrap_or(0);
-        //find the start point
+        //findet den Startpunkt
         let start_pt = max_second_costs[start_pt_n].0;
         println!("start_pt: {}", start_pt);
         let curr_end_idx = if start_pt_n == 0 { 1 } else { 0 };
+        // berechnet die untere Grenze
         let cost = {
             let max_idx = max_second_costs[curr_end_idx].0;
             let mut cost = 0.0;
@@ -113,7 +142,6 @@ impl<'a> PathFinder<'a> {
         for line in &lines {
             n_pts -= line.pts.len() - 2;
         }
-
         let went_back = false;
 
         let path = vec![start_pt];
@@ -268,8 +296,9 @@ impl<'a> PathFinder<'a> {
     }
     /// findet den nächsten punkt, entweder den nächsten nähsten oder einen Sprung
     pub fn find_nexts(&mut self, curr_pt: usize) -> Option<(usize, f64, Option<Skip>)> {
-        let level = self.path.len() - 1; //gibt an, wie weit man sich im Pfad befindet
-                                         //der vorherige punkt, ist None wenn der aktuelle punkt der erste ist
+        //gibt an, wie weit man sich im Pfad befindet
+        let level = self.path.len() - 1; 
+        //der vorherige punkt, ist None wenn der aktuelle punkt der erste ist
         let p_pt = self.get_prev_pt();
         //der wivielt-nähste punkt als nächstes genommen wird,
         //wird benutzt, um zu prüfen, ob auf diesen punkt schon zurückgesprungen wurde
@@ -364,13 +393,15 @@ impl<'a> PathFinder<'a> {
         }
     }
     fn run(&mut self) -> Option<Vec<usize>> {
-        let mut i: u128 = 0;
+        //kürzester Pfad
         let mut min_path: Option<Vec<usize>> = None;
-        let mut min_cost = f64::INFINITY;
-        let mut n_high: u128 = 0;
-        let mut min_level = usize::MAX;
-        //self.cost = 0.0;
+        let mut min_cost = f64::INFINITY; 
+        //Anzahl der Pfade, die abgeschnitten wurden
+        let mut n_cut: u128 = 0; 
+        //tiefstes Level, auf das zurückgesprungen wurde
+        let mut min_level = usize::MAX; 
 
+        let mut i: u128 = 0; //Anzahl der durchgeführten Schritte
         'main_loop: loop {
             i += 1;
             if i > self.args.max_iter && min_path.is_some() {
@@ -379,9 +410,9 @@ impl<'a> PathFinder<'a> {
                     "tiefstes Level auf das zurückgegangen wurde: {}/{}, Abgeschnittene Pfade: {}/{} = {:.3}%",
                     min_level,
                     self.n_pts,
-                    n_high,
+                    n_cut,
                     i,
-                    n_high as f64 / i as f64 * 100.0
+                    n_cut as f64 / i as f64 * 100.0
                 );
                 return min_path;
             }
@@ -389,10 +420,12 @@ impl<'a> PathFinder<'a> {
                 println!(
                     "i: {}, Abgeschnittene Pfade: {:.3}%",
                     i,
-                    n_high as f64 / i as f64 * 100.0
+                    n_cut as f64 / i as f64 * 100.0
                 );
             }
-            if i > 1000_000 && min_path.is_none() {
+            //wenn nach 1.000.000 Schritten kein Pfad gefunden wurde, wird abgebrochen
+            // Dadurch wird zum nächsten Startpunkt weitergegenagen
+            if i > 1000_000 && min_path.is_none() { 
                 return None;
             }
             if self.path.is_empty() {
@@ -402,28 +435,31 @@ impl<'a> PathFinder<'a> {
                 }
                 return None;
             }
+            // gibt an, wie weit man sich im Pfad befindet
             let level = self.path.len() - 1;
 
             if self.went_back && level < min_level {
                 min_level = level;
             }
-            let level = self.path.len() - 1;
-
-            //self.idxs.push(curr_idx + 1);
+            // der aktuelle Punkt
             let curr_pt = self.path[level];
 
+            // der nächste Punkt wird gesucht
             let (next_pt, move_cost, did_skip) = if let Some(result) = self.find_nexts(curr_pt) {
                 result
             } else {
+                // wenn kein nächster Punkt gefunden wurde, wird zurückgesprungen
                 self.backtrack(curr_pt);
                 continue 'main_loop;
             };
             self.prev_costs.push(self.cost);
             self.prev_end_idxs.push(self.curr_end_idx);
+            // Die untere Grenze wird aktualisiert
             self.cost += move_cost + self.update_costs(curr_pt, next_pt);
 
+            // wenn der Pfad zu lang ist, wird er abgeschnitten
             if self.cost > min_cost {
-                n_high += 1;
+                n_cut += 1;
                 self.prev_costs.pop();
                 self.prev_end_idxs.pop();
                 self.backtrack(curr_pt);
@@ -446,18 +482,18 @@ impl<'a> PathFinder<'a> {
 
             self.prev_skips.push(did_skip);
 
+            // Alle Punkte wurden besucht
             if self.path.len() == self.n_pts {
+                // füge die Linien wieder ein
                 let full_path = insert_lines(&self.path, self.lines.clone());
                 if self.cost < min_cost {
-                    //self.cost -= cost;
-                    let n_high_per = n_high as f64 / i as f64;
+                    let n_high_per = n_cut as f64 / i as f64;
                     println!(
                         "neue untere Grenze: {}, Abgeschnittene Pfade: {}/{} = {:.3}%",
                         self.cost,
-                        n_high,
+                        n_cut,
                         i,
                         n_high_per * 100.0,
-                        //self.prev_costs
                     );
                     min_cost = self.cost;
                     min_path = Some(full_path.clone());
@@ -466,8 +502,8 @@ impl<'a> PathFinder<'a> {
                         return min_path;
                     }
                 }
+                // gehe zurück um weiterzusuchen
                 self.backtrack(next_pt);
-
                 continue 'main_loop;
             }
         }
